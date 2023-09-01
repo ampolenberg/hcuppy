@@ -1,49 +1,58 @@
 import csv
-import re
-from pkg_resources import resource_filename as rscfn
-import requests
-from io import BytesIO
-from io import StringIO
-from zipfile import ZipFile
-from urllib.request import urlopen
-import string
 import json
+import re
+import string
 from collections import defaultdict
+from io import BytesIO, StringIO
+from urllib.request import urlopen
+from zipfile import ZipFile
+
+import requests
+from pkg_resources import resource_filename as rscfn
+
 
 def _clnrw(row):
-    return [x.replace('"',"").replace("'","").strip() for x in row]
+    return [x.replace('"', "").replace("'", "").strip() for x in row]
+
 
 def license_cpt():
     fn = rscfn(__name__, "data/license.txt")
     aggreement = "reject"
     with open(fn, "r") as fp:
         for line in fp.readlines():
-            if line=="\n":
+            if line == "\n":
                 continue
             print(line)
         agreement = input("(accept/reject):")
-    return agreement=="accept"
+    return agreement == "accept"
+
 
 def _expand_cpt(x):
     start, end = x.split("-")
     if start[0] in string.ascii_uppercase:
-        return ["{0}{1:04n}".format(start[0], x)
-                for x in range(int(start[1:]), int(end[1:])+1)]
+        return [
+            "{0}{1:04n}".format(start[0], x)
+            for x in range(int(start[1:]), int(end[1:]) + 1)
+        ]
     elif start[-1] in string.ascii_uppercase:
-        return ["{0:04n}{1}".format(x, start[-1])
-                for x in range(int(start[:-1]), int(end[:-1])+1)]
+        return [
+            "{0:04n}{1}".format(x, start[-1])
+            for x in range(int(start[:-1]), int(end[:-1]) + 1)
+        ]
     else:
-        return ["{0:05n}".format(x) for x in range(int(start), int(end)+1)]
+        return ["{0:05n}".format(x) for x in range(int(start), int(end) + 1)]
+
 
 def download_cpt():
-
     if not license_cpt():
         print("No CPT files downloaded.")
         return 1
 
-    url = ("https://www.hcup-us.ahrq.gov/toolssoftware/"+
-            "ccs_svcsproc/2019_ccs_services_procedures.zip")
-    fn = "2019_ccs_services_procedures.csv"
+    url = (
+        "https://hcup-us.ahrq.gov/toolssoftware/ccs_svcsproc/"
+        + "CCS_ServicesProcedures_v2022.1.zip"
+    )
+    fn = "CCS_services_procedures_v2022-1_052422.csv"
     res = urlopen(url)
     cpt2ccs = {}
     with ZipFile(BytesIO(res.read())) as zp:
@@ -54,17 +63,17 @@ def download_cpt():
             ccs = row[1]
             desc = row[2]
             for cpt in _expand_cpt(row[0]):
-                cpt2ccs[cpt] = {"ccs": ccs,
-                                "ccs_desc": desc}
+                cpt2ccs[cpt] = {"ccs": ccs, "ccs_desc": desc}
     fn = rscfn(__name__, "data/cpt2ccs.json")
     with open(fn, "w") as fp:
         json.dump(cpt2ccs, fp=fp, indent=2, sort_keys=True)
 
-
     cpt2sflag = {}
     desc = {"1": "broad", "2": "narrow"}
-    url = ("https://www.hcup-us.ahrq.gov/toolssoftware/surgflags/"+
-            "surgery_flags_cpt_2017.csv")
+    url = (
+        "https://www.hcup-us.ahrq.gov/toolssoftware/surgflags/"
+        + "surgery_flags_cpt_2017.csv"
+    )
     res = urlopen(url)
     reader = csv.reader(StringIO(res.read().decode("utf-8")))
     meta = next(reader)
@@ -75,14 +84,14 @@ def download_cpt():
             continue
         flag = row[1]
         for cpt in _expand_cpt(row[0]):
-            cpt2sflag[cpt] = {"flag": flag,
-                            "desc": desc[flag]}
-    
+            cpt2sflag[cpt] = {"flag": flag, "desc": desc[flag]}
+
     fn = rscfn(__name__, "data/cpt2sflag.json")
     with open(fn, "w") as fp:
         json.dump(cpt2sflag, fp=fp, indent=2, sort_keys=True)
 
     return 0
+
 
 def read_cpt_sect(fn):
     cpt2sect = {}
@@ -96,6 +105,7 @@ def read_cpt_sect(fn):
                 cpt2sect[cpt] = {"sect": sect, "desc": desc}
     return cpt2sect
 
+
 def read_ccs(fn):
     icd2ccs = {}
     fn = rscfn(__name__, fn)
@@ -104,21 +114,26 @@ def read_ccs(fn):
         header = next(reader)
         for row in reader:
             row = _clnrw(row)
-            icd2ccs[row[0]] = {"ccs": row[1],
-                            "ccs_desc": row[3],
-                            "ccs_lv1": row[4],
-                            "ccs_lv1_desc": row[5],
-                            "ccs_lv2": row[6],
-                            "ccs_lv2_desc": row[7]}
+            icd2ccs[row[0]] = {
+                "ccs": row[1],
+                "ccs_desc": row[3],
+                "ccs_lv1": row[4],
+                "ccs_lv1_desc": row[5],
+                "ccs_lv2": row[6],
+                "ccs_lv2_desc": row[7],
+            }
     return icd2ccs
+
 
 def read_cci(fn):
     dx2cci = {}
     fn = rscfn(__name__, fn)
-    descmap = {"1": "Infectious and parasitic disease",
+    descmap = {
+        "1": "Infectious and parasitic disease",
         "2": "Neoplasms",
-        "3": ("Endocrine, nutritional, and metabolic diseases " + 
-            "and immunity disorders"),
+        "3": (
+            "Endocrine, nutritional, and metabolic diseases " + "and immunity disorders"
+        ),
         "4": "Diseases of blood and blood-forming organs",
         "5": "Mental disorders",
         "6": "Diseases of the nervous system and sense organs",
@@ -133,19 +148,24 @@ def read_cci(fn):
         "15": "Certain conditions originating in the perinatal period",
         "16": "Symptoms, signs, and ill-defined conditions",
         "17": "Injury and poisoning",
-        "18": ("Factors influencing health status " + 
-                "and contact with health services"),
-        "None": "N/A"}
- 
+        "18": (
+            "Factors influencing health status " + "and contact with health services"
+        ),
+        "None": "N/A",
+    }
+
     with open(fn, "r") as fp:
         reader = csv.reader(fp, delimiter=",")
         header = next(reader)
         for row in reader:
             row = _clnrw(row)
-            dx2cci[row[0]] = {"is_chronic": row[2]=="1",
-                            "body_system": row[3],
-                            "body_system_desc": descmap[row[3]]}
+            dx2cci[row[0]] = {
+                "is_chronic": row[2] == "1",
+                "body_system": row[3],
+                "body_system_desc": descmap[row[3]],
+            }
     return dx2cci
+
 
 def read_elixhauser(fn):
     dx2elix = defaultdict(list)
@@ -155,9 +175,9 @@ def read_elixhauser(fn):
         end = False
         dxlst = []
         for line in fp.readlines():
-            if line.strip() == "Value $COMFMT": 
+            if line.strip() == "Value $COMFMT":
                 start = True
-            if start and line.strip()==";":
+            if start and line.strip() == ";":
                 end = True
                 break
             if start and not end:
@@ -177,16 +197,16 @@ def read_elixhauser(fn):
                     if len(matches) > 0:
                         dx = matches[0]
                         dxlst.append(dx)
-    
+
     # Present on Admission Exceptions; added in Y22
     with open(fn, "r") as fp:
         start = False
         end = False
         dxlst = []
         for line in fp.readlines():
-            if line.strip() == "Value $POAXMPT_V39FMT": 
+            if line.strip() == "Value $POAXMPT_V39FMT":
                 start = True
-            if start and line.strip()==";":
+            if start and line.strip() == ";":
                 end = True
                 break
             if start and not end:
@@ -216,7 +236,7 @@ def read_elixhauser_v19(fn):
         for line in fp.readlines():
             if line.strip() == "Value $RCOMFMT":
                 start = True
-            if start and line.strip()==";":
+            if start and line.strip() == ";":
                 end = True
                 break
             if start and not end:
@@ -237,6 +257,7 @@ def read_elixhauser_v19(fn):
                         dxlst.append(dx)
     return dx2elix
 
+
 def read_prcls(fn):
     pr2cls = {}
     fn = rscfn(__name__, fn)
@@ -246,9 +267,9 @@ def read_prcls(fn):
         header = next(reader)
         for row in reader:
             row = _clnrw(row)
-            pr2cls[row[0]] = {"class": row[2],
-                            "desc": row[3]}
+            pr2cls[row[0]] = {"class": row[2], "desc": row[3]}
     return pr2cls
+
 
 def read_utilflag(fn):
     utilmap = {}
@@ -262,17 +283,14 @@ def read_utilflag(fn):
             utilmap[key] = row[2]
     return utilmap
 
+
 def read_surgeryflag(fn):
     fn = rscfn(__name__, fn)
     with open(fn, "r") as fp:
         return json.load(fp)
 
+
 def read_cpt2ccs(fn):
     fn = rscfn(__name__, fn)
     with open(fn, "r") as fp:
         return json.load(fp)
-
-
-
-
-
